@@ -27,7 +27,7 @@ jobs:
           pip install requests numpy matplotlib scipy pillow
 
       - name: Run Forecast Batch Script
-        run: Snowfall_Cross_Sections.py
+        run: python Snowfall_Cross_Sections.py
 
       - name: Commit and Push Updated Graphics
         run: |
