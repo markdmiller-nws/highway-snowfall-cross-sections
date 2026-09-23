@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Western U.S. Highway Snowfall Forecast Cross-Sections</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #121820;
+            color: #ffffff;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Navigation */
+        #sidebar {
+            width: 320px;
+            background-color: #1b2431;
+            border-right: 1px solid #2a3649;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        #sidebar h1 {
+            font-size: 1.2rem;
+            color: #4a90e2;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #sidebar p {
+            font-size: 0.85rem;
+            color: #9ba8b7;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: #6c7d93;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin: 15px 0 8px 0;
+        }
+
+        .route-btn {
+            background-color: #243042;
+            color: #e1e7ed;
+            border: 1px solid #31425a;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            text-align: left;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .route-btn:hover {
+            background-color: #2c3c54;
+            border-color: #4a90e2;
+            color: #ffffff;
+        }
+
+        .route-btn.active {
+            background-color: #4a90e2;
+            border-color: #6ba4e8;
+            color: #ffffff;
+        }
+
+        /* Sidebar Footer Note */
+        .sidebar-footer-note {
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px solid #2a3649;
+            font-size: 0.75rem;
+            color: #6c7d93;
+            line-height: 1.4;
+        }
+
+        .sidebar-footer-note strong {
+            color: #9ba8b7;
+        }
+
+        /* Main Viewer Area */
+        #viewer-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 30px;
+            background-color: #0d131a;
+            position: relative;
+        }
+
+        /* Timeframe Toggle Switch */
+        .timeframe-bar {
+            display: flex;
+            background-color: #1b2431;
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid #2a3649;
+            margin-bottom: 20px;
+        }
+
+        .tf-btn {
+            background: none;
+            border: none;
+            color: #9ba8b7;
+            padding: 8px 24px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tf-btn:hover {
+            color: #ffffff;
+        }
+
+        .tf-btn.active {
+            background-color: #ffd166;
+            color: #000000;
+            box-shadow: 0 2px 8px rgba(255, 209, 102, 0.3);
+        }
+
+        #graphic-display {
+            max-width: 100%;
+            max-height: 80vh;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid #2a3649;
+            transition: opacity 0.15s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Route Menu -->
+    <div id="sidebar">
+        <h1>NWS Snowfall Forecasts</h1>
+        <p>Western U.S. Terrain Cross-Sections</p>
+
+        <div class="section-title">West ──► East Corridors</div>
+        <button class="route-btn active" onclick="setRoute('i70_co', this)">Colorado I-70 Corridor</button>
+        <button class="route-btn" onclick="setRoute('i80_ca', this)">CA I-80 Donner Pass</button>
+        <button class="route-btn" onclick="setRoute('us50_tahoe', this)">US-50 Lake Tahoe / Echo</button>
+        <button class="route-btn" onclick="setRoute('i90_wa', this)">WA I-90 Snoqualmie Pass</button>
+        <button class="route-btn" onclick="setRoute('i80_ut', this)">Utah I-80 Parleys Canyon</button>
+
+        <div class="section-title">North ──► South Corridors</div>
+        <button class="route-btn" onclick="setRoute('i25_co_nm', this)">I-25 Front Range</button>
+        <button class="route-btn" onclick="setRoute('i5_siskiyou', this)">I-5 Siskiyou Pass</button>
+        <button class="route-btn" onclick="setRoute('us395_sierra', this)">US-395 Eastern Sierra</button>
+        <button class="route-btn" onclick="setRoute('i15_id_mt', this)">I-15 Monida Pass</button>
+
+        <!-- Attribution Note -->
+        <div class="sidebar-footer-note">
+            <strong>Data Source:</strong> Forecast data sourced directly from the NWS National Digital Forecast Database (NDFD).
+        </div>
+    </div>
+
+    <!-- Main Display Area -->
+    <div id="viewer-container">
+        
+        <!-- Time Horizon Toggle Switch -->
+        <div class="timeframe-bar">
+            <button class="tf-btn active" onclick="setTimeframe(24, this)">24-HOUR ACCUMULATION</button>
+            <button class="tf-btn" onclick="setTimeframe(48, this)">48-HOUR ACCUMULATION</button>
+            <button class="tf-btn" onclick="setTimeframe(72, this)">72-HOUR ACCUMULATION</button>
+        </div>
+
+        <img id="graphic-display" src="output_graphics/i70_co_24h.png" alt="Snowfall Forecast Graphic">
+    </div>
+
+    <script>
+        let currentRoute = 'i70_co';
+        let currentHours = 24;
+
+        function updateGraphic() {
+            const img = document.getElementById('graphic-display');
+            img.style.opacity = '0.3';
+            
+            setTimeout(() => {
+                img.src = `output_graphics/${currentRoute}_${currentHours}h.png`;
+                img.style.opacity = '1';
+            }, 100);
+        }
+
+        function setRoute(routeKey, element) {
+            document.querySelectorAll('.route-btn').forEach(btn => btn.classList.remove('active'));
+            element.classList.add('active');
+            currentRoute = routeKey;
+            updateGraphic();
+        }
+
+        function setTimeframe(hours, element) {
+            document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.remove('active'));
+            element.classList.add('active');
+            currentHours = hours;
+            updateGraphic();
+        }
+    </script>
+</body>
+</html>
