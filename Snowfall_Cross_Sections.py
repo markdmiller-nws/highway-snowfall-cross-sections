@@ -206,15 +206,22 @@ def ensure_assets_exist():
     # 1. Check NOAA Emblem
     noaa_path = os.path.join(ASSETS_DIR, NOAA_LOGO_FILE)
     if not os.path.exists(noaa_path):
-        url = "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/NOAA_logo.svg/320px-NOAA_logo.svg.png"
-        try:
-            res = requests.get(url, headers=headers, verify=False, timeout=15)
-            if res.status_code == 200:
-                Image.open(BytesIO(res.content)).convert('RGBA').save(noaa_path)
-                print(" Saved NOAA logo to assets/")
-            else:
-                create_fallback_shield(NOAA_LOGO_FILE, "NOAA")
-        except Exception:
+        noaa_urls = [
+            "https://www.weather.gov/images/nws/noaa_logo.png",
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/NOAA_logo.svg/320px-NOAA_logo.svg.png"
+        ]
+        saved = False
+        for url in noaa_urls:
+            try:
+                res = requests.get(url, headers=headers, verify=False, timeout=15)
+                if res.status_code == 200:
+                    Image.open(BytesIO(res.content)).convert('RGBA').save(noaa_path)
+                    print(" Saved NOAA logo to assets/")
+                    saved = True
+                    break
+            except Exception:
+                continue
+        if not saved:
             create_fallback_shield(NOAA_LOGO_FILE, "NOAA")
 
     # 2. Check NWS Emblem
