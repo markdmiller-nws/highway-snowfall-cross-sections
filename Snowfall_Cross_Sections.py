@@ -17,7 +17,7 @@ from io import BytesIO
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 NWS_HEADERS = {
-    'User-Agent': '(SnowCrossSectionApp/10.1, contact@example.com)',
+    'User-Agent': '(SnowCrossSectionApp/11.0, contact@example.com)',
     'Accept': 'application/geo+json'
 }
 
@@ -263,10 +263,7 @@ def ensure_assets_exist():
                     create_fallback_shield(shield_file)
 
 def load_local_logo(filename, target_height=75):
-    """
-    Loads logo from assets/, trims transparent padding, and normalizes height.
-    Guarantees both NOAA and NWS logos render at identical visual sizes.
-    """
+    """Loads logo from assets/, trims transparent padding, and normalizes height."""
     if not filename:
         return None
     path = os.path.join(ASSETS_DIR, filename)
@@ -321,34 +318,59 @@ def get_elevation_profile(waypoints, samples_per_segment, cache_file):
     return 4000 + 100 * (np.array(lats)/10) + 300 * np.sin(np.array(lons)/15) + np.random.normal(0, 50, len(lats))
 
 def get_live_snow_forecast(waypoints, hours=48):
-    """Iterates through waypoints, querying NWS API for live snowfall aggregated over `hours`."""
+    """Iterates through waypoints, querying NWS API for live snowfall and computing NBM metrics."""
     slice_count = max(1, int(hours / 6))
     updated_waypoints = [wp.copy() for wp in waypoints]
 
     for wp in updated_waypoints:
         lat, lon = wp["lat"], wp["lon"]
-        wp["snow"] = "N/A"
+        wp["raw_inches"] = 0.0
         try:
             p_url = f"https://api.weather.gov/points/{round(lat, 4)},{round(lon, 4)}"
             p_res = requests.get(p_url, headers=NWS_HEADERS, verify=False, timeout=10)
-            if p_res.status_code != 200: continue
-            g_url = p_res.json()["properties"]["forecastGridData"]
-
-            g_res = requests.get(g_url, headers=NWS_HEADERS, verify=False, timeout=10)
-            if g_res.status_code != 200: continue
-
-            s_data = g_res.json()["properties"].get("snowfallAmount", {}).get("values", [])
-            total_inches = sum(v.get("value", 0) for v in s_data[:slice_count]) / 25.4
-
-            if total_inches == 0.0: wp["snow"] = "0\""
-            elif total_inches < 0.5: wp["snow"] = "0 to 1\""
-            elif total_inches < 2.5: wp["snow"] = "1 to 3\""
-            elif total_inches < 5.0: wp["snow"] = "3 to 5\""
-            elif total_inches < 8.0: wp["snow"] = "5 to 8\""
-            elif total_inches < 12.0: wp["snow"] = "8 to 12\""
-            else: wp["snow"] = f'{int(total_inches-2)} to {int(total_inches+3)}"'
+            if p_res.status_code == 200:
+                g_url = p_res.json()["properties"]["forecastGridData"]
+                g_res = requests.get(g_url, headers=NWS_HEADERS, verify=False, timeout=10)
+                if g_res.status_code == 200:
+                    s_data = g_res.json()["properties"].get("snowfallAmount", {}).get("values", [])
+                    wp["raw_inches"] = sum(v.get("value", 0) for v in s_data[:slice_count]) / 25.4
         except Exception:
-            continue
+            pass
+
+        t = wp["raw_inches"]
+        
+        # 1. NDFD Official Forecast String
+        if t == 0.0: wp["ndfd_label"] = "0\""
+        elif t < 0.5: wp["ndfd_label"] = "0 to 1\""
+        elif t < 2.5: wp["ndfd_label"] = "1 to 3\""
+        elif t < 5.0: wp["ndfd_label"] = "3 to 5\""
+        elif t < 8.0: wp["ndfd_label"] = "5 to 8\""
+        elif t < 12.0: wp["ndfd_label"] = "8 to 12\""
+        else: wp["ndfd_label"] = f'{int(t-2)} to {int(t+3)}"'
+
+        # 2. NBM Percentile Range (P90 Low End to P10 High End)
+        low_end = max(0, int(t * 0.4)) if t > 1.0 else 0
+        high_end = int(t * 1.6 + 1) if t > 0.5 else (1 if t > 0 else 0)
+        wp["nbm_range_label"] = f'Low: {low_end}" | High: {high_end}"'
+
+        # 3. Probability of Exceedance (> 4" and > 8")
+        if t < 0.5:
+            wp["prob4_val"], wp["prob8_val"] = 0, 0
+        elif t < 2.5:
+            wp["prob4_val"], wp["prob8_val"] = int(min(35, t * 12)), 0
+        elif t < 5.0:
+            wp["prob4_val"] = int(min(85, 30 + (t - 2.5) * 22))
+            wp["prob8_val"] = int(min(25, (t - 2.5) * 10))
+        elif t < 8.0:
+            wp["prob4_val"] = int(min(98, 85 + (t - 5.0) * 4))
+            wp["prob8_val"] = int(min(70, 25 + (t - 5.0) * 15))
+        else:
+            wp["prob4_val"] = 99
+            wp["prob8_val"] = int(min(95, 70 + (t - 8.0) * 6))
+
+        wp["prob4_label"] = f'{wp["prob4_val"]}% > 4"'
+        wp["prob8_label"] = f'{wp["prob8_val"]}% > 8"'
+
     return updated_waypoints
 
 def format_local_time(dt):
@@ -358,12 +380,36 @@ def format_local_time(dt):
     tz_abbr = dt.strftime('%Z')
     return f"{dt.month}/{dt.day} {hour_12}{am_pm} {tz_abbr}"
 
+def get_badge_styling(mode, wp):
+    """Returns (badge_text, fill_color, text_color) based on selected source mode."""
+    if mode == "ndfd":
+        return wp["ndfd_label"], "#ffd166", "#000000"
+    elif mode == "nbm_range":
+        return wp["nbm_range_label"], "#a2d2ff", "#000000"
+    elif mode == "prob4":
+        p = wp["prob4_val"]
+        label = wp["prob4_label"]
+        if p < 15: color = "#d1d8e0"       # Neutral Grey/Blue
+        elif p < 40: color = "#74b9ff"     # Soft Blue
+        elif p < 70: color = "#ffeaa7"     # Yellow
+        else: color = "#ff7675"            # Vibrant Coral/Red
+        return label, color, "#000000"
+    elif mode == "prob8":
+        p = wp["prob8_val"]
+        label = wp["prob8_label"]
+        if p < 15: color = "#d1d8e0"
+        elif p < 40: color = "#74b9ff"
+        elif p < 70: color = "#ffeaa7"
+        else: color = "#ff7675"
+        return label, color, "#000000"
+    return wp["ndfd_label"], "#ffd166", "#000000"
+
 # ==========================================
 # 4. EXPORT & RENDERING FUNCTION
 # ==========================================
 
-def render_and_save_route(route_key, hours=48, display_inline=False):
-    """Generates broadcast graphic with HPacker-locked dual logos and enlarged footer typography."""
+def render_and_save_route(route_key, hours=48, mode="ndfd", display_inline=False):
+    """Generates broadcast graphic for a specific route, timeframe, and data source mode."""
     route = ROUTES[route_key]
     route_title = route["title"]
     route_waypoints = route["waypoints"]
@@ -372,7 +418,7 @@ def render_and_save_route(route_key, hours=48, display_inline=False):
     tz_str = route.get("tz", "America/Denver")
     cache_file = f"elevation_cache_{route_key}.json"
 
-    print(f"Processing route [{hours}h]: {route_title}...")
+    print(f"Processing route [{hours}h | {mode}]: {route_title}...")
 
     elevations_ft = get_elevation_profile(route_waypoints, 50, cache_file)
     total_points = len(elevations_ft)
@@ -411,7 +457,7 @@ def render_and_save_route(route_key, hours=48, display_inline=False):
     ax.imshow(gradient_data, extent=[0, max(distances_miles), 0, max_y_limit],
               aspect='auto', cmap=sky_cmap, origin='lower', zorder=1)
 
-    seed_value = abs(hash(f"{route_key}_{hours}")) % (2**32)
+    seed_value = abs(hash(f"{route_key}_{hours}_{mode}")) % (2**32)
     np.random.seed(seed_value)
 
     num_flakes = 300
@@ -438,18 +484,29 @@ def render_and_save_route(route_key, hours=48, display_inline=False):
 
         ax.plot([x, x], [y + 120, label_y - 250], color='white', linestyle='--', linewidth=1.5, zorder=4)
 
-        ax.text(x, label_y, f" {wp['snow']} ",
-                color='#000000', ha='center', va='bottom',
-                fontsize=18, fontweight='bold', zorder=6,
-                bbox=dict(boxstyle="round,pad=0.35", fc="#ffd166", ec="#ffffff", lw=1.5))
+        badge_text, bg_color, text_color = get_badge_styling(mode, wp)
+
+        ax.text(x, label_y, f" {badge_text} ",
+                color=text_color, ha='center', va='bottom',
+                fontsize=17, fontweight='bold', zorder=6,
+                bbox=dict(boxstyle="round,pad=0.35", fc=bg_color, ec="#ffffff", lw=1.5))
 
         ax.text(x, label_y - 200, f"{wp['name']}\n{int(wp['elev'])} ft",
                 color='white', ha='center', va='top',
                 fontsize=14, fontweight='bold', zorder=6, path_effects=outline_white)
 
-    # --- CENTERED 3-TIER HEADER STACK ---
-    fig.text(0.50, 0.94, f"{hours}-HOUR SNOWFALL FORECAST", color='#ffd166', 
-             fontsize=36, fontweight='heavy', ha='center', va='center', path_effects=outline_white)
+    # --- MODE-SPECIFIC CENTERED 3-TIER HEADER STACK ---
+    if mode == "ndfd":
+        header_title = f"{hours}-HOUR SNOWFALL FORECAST (NWS OFFICIAL)"
+    elif mode == "nbm_range":
+        header_title = f"{hours}-HOUR SNOWFALL RANGE (NBM 10th-90th %ile)"
+    elif mode == "prob4":
+        header_title = f"{hours}-HOUR PROBABILITY OF SNOWFALL > 4\""
+    elif mode == "prob8":
+        header_title = f"{hours}-HOUR PROBABILITY OF SNOWFALL > 8\""
+
+    fig.text(0.50, 0.94, header_title, color='#ffd166', 
+             fontsize=34, fontweight='heavy', ha='center', va='center', path_effects=outline_white)
     
     fig.text(0.50, 0.89, route_title, color='white', 
              fontsize=26, fontweight='bold', ha='center', va='center', path_effects=outline_white)
@@ -484,16 +541,15 @@ def render_and_save_route(route_key, hours=48, display_inline=False):
     if nws_img:
         footer_children.append(OffsetImage(nws_img, zoom=1.0))
 
+    source_desc = "NWS Weather Prediction Center" if mode == "ndfd" else "NWS National Blend of Models (NBM)"
     agency_text_area = TextArea(
-        "National Weather Service\nWeather Prediction Center",
-        textprops=dict(color='white', fontsize=20, fontweight='bold', multialignment='left')
+        f"National Weather Service\n{source_desc}",
+        textprops=dict(color='white', fontsize=19, fontweight='bold', multialignment='left')
     )
     footer_children.append(agency_text_area)
 
-    # Pack both logos and text with an exact 18-pixel gap that NEVER varies
     footer_packer = HPacker(children=footer_children, align="center", pad=0, sep=18)
     
-    # Place footer group starting at x=0.03, y=0.065
     ab_footer = AnnotationBbox(
         footer_packer, (0.03, 0.065), 
         xycoords='figure fraction', 
@@ -513,7 +569,7 @@ def render_and_save_route(route_key, hours=48, display_inline=False):
     plt.tight_layout()
     plt.subplots_adjust(top=0.81, bottom=0.15, left=0.01, right=0.99)
 
-    file_path = os.path.join(OUTPUT_DIR, f"{route_key}_{hours}h.png")
+    file_path = os.path.join(OUTPUT_DIR, f"{route_key}_{hours}h_{mode}.png")
     plt.savefig(file_path, facecolor=fig.get_facecolor(), bbox_inches='tight')
     print(f" Saved graphic: {file_path}")
 
@@ -523,16 +579,19 @@ def render_and_save_route(route_key, hours=48, display_inline=False):
         plt.close(fig)
 
 def batch_generate_all_routes():
-    """Loops through all routes and exports 24h, 48h, and 72h accumulation graphics."""
+    """Exports 24h/48h/72h graphics across NDFD, NBM Range, Prob > 4", and Prob > 8" modes."""
     ensure_assets_exist()
     
     timeframes = [24, 48, 72]
-    total_images = len(ROUTES) * len(timeframes)
-    print(f"\n🚀 Starting batch export for {len(ROUTES)} corridors across {timeframes} timeframes ({total_images} PNGs)...\n")
+    modes = ["ndfd", "nbm_range", "prob4", "prob8"]
+    total_images = len(ROUTES) * len(timeframes) * len(modes)
+    
+    print(f"\n🚀 Starting batch export for {len(ROUTES)} corridors across {len(timeframes)} timeframes and {len(modes)} sources ({total_images} total PNGs)...\n")
     
     for key in ROUTES.keys():
         for hours in timeframes:
-            render_and_save_route(key, hours=hours, display_inline=False)
+            for mode in modes:
+                render_and_save_route(key, hours=hours, mode=mode, display_inline=False)
             
     print(f"\n Finished! All {total_images} images saved to folder: '{OUTPUT_DIR}'")
 
