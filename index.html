@@ -104,32 +104,47 @@
             position: relative;
         }
 
-        /* Timeframe Toggle Switch */
-        .timeframe-bar {
+        /* Control Toggle Stack */
+        .controls-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .mode-bar, .timeframe-bar {
             display: flex;
             background-color: #1b2431;
             padding: 4px;
             border-radius: 8px;
             border: 1px solid #2a3649;
-            margin-bottom: 20px;
         }
 
-        .tf-btn {
+        .mode-btn, .tf-btn {
             background: none;
             border: none;
             color: #9ba8b7;
-            padding: 8px 24px;
-            font-size: 0.85rem;
+            padding: 7px 16px;
+            font-size: 0.8rem;
             font-weight: 700;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
-        .tf-btn:hover {
+        .mode-btn:hover, .tf-btn:hover {
             color: #ffffff;
         }
 
+        /* Mode Selector Active State (Blue Highlight) */
+        .mode-btn.active {
+            background-color: #4a90e2;
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+        }
+
+        /* Timeframe Active State (Gold Highlight) */
         .tf-btn.active {
             background-color: #ffd166;
             color: #000000;
@@ -138,7 +153,7 @@
 
         #graphic-display {
             max-width: 100%;
-            max-height: 80vh;
+            max-height: 76vh;
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             border: 1px solid #2a3649;
@@ -150,7 +165,7 @@
 
     <!-- Sidebar Route Menu -->
     <div id="sidebar">
-        <h1>NWS Snowfall Forecasts</h1>
+        <h1>Snowfall Forecasts</h1>
         <p>Western U.S. Terrain Cross-Sections</p>
 
         <div class="section-title">West ──► East Corridors</div>
@@ -168,33 +183,44 @@
 
         <!-- Attribution Note -->
         <div class="sidebar-footer-note">
-            <strong>Data Source:</strong> Forecast data sourced directly from the NWS National Digital Forecast Database (NDFD).
+            <strong>Data Sources:</strong> Forecast guidance sourced directly from NWS NDFD (Official) and NWS National Blend of Models (NBM Probabilistic).
         </div>
     </div>
 
     <!-- Main Display Area -->
     <div id="viewer-container">
         
-        <!-- Time Horizon Toggle Switch -->
-        <div class="timeframe-bar">
-            <button class="tf-btn active" onclick="setTimeframe(24, this)">24-HOUR ACCUMULATION</button>
-            <button class="tf-btn" onclick="setTimeframe(48, this)">48-HOUR ACCUMULATION</button>
-            <button class="tf-btn" onclick="setTimeframe(72, this)">72-HOUR ACCUMULATION</button>
+        <div class="controls-stack">
+            <!-- Data Source & Forecast Type Toggle Bar -->
+            <div class="mode-bar">
+                <button class="mode-btn active" onclick="setMode('ndfd', this)">NWS OFFICIAL (NDFD)</button>
+                <button class="mode-btn" onclick="setMode('nbm_range', this)">NBM RANGE (10th-90th %ile)</button>
+                <button class="mode-btn" onclick="setMode('prob4', this)">PROBABILITY > 4"</button>
+                <button class="mode-btn" onclick="setMode('prob8', this)">PROBABILITY > 8"</button>
+            </div>
+
+            <!-- Time Horizon Toggle Switch -->
+            <div class="timeframe-bar">
+                <button class="tf-btn active" onclick="setTimeframe(24, this)">24-HOUR ACCUMULATION</button>
+                <button class="tf-btn" onclick="setTimeframe(48, this)">48-HOUR ACCUMULATION</button>
+                <button class="tf-btn" onclick="setTimeframe(72, this)">72-HOUR ACCUMULATION</button>
+            </div>
         </div>
 
-        <img id="graphic-display" src="output_graphics/i70_co_24h.png" alt="Snowfall Forecast Graphic">
+        <img id="graphic-display" src="output_graphics/i70_co_24h_ndfd.png" alt="Snowfall Forecast Graphic">
     </div>
 
     <script>
         let currentRoute = 'i70_co';
         let currentHours = 24;
+        let currentMode = 'ndfd';
 
         function updateGraphic() {
             const img = document.getElementById('graphic-display');
             img.style.opacity = '0.3';
             
             setTimeout(() => {
-                img.src = `output_graphics/${currentRoute}_${currentHours}h.png`;
+                img.src = `output_graphics/${currentRoute}_${currentHours}h_${currentMode}.png`;
                 img.style.opacity = '1';
             }, 100);
         }
@@ -210,6 +236,13 @@
             document.querySelectorAll('.tf-btn').forEach(btn => btn.classList.remove('active'));
             element.classList.add('active');
             currentHours = hours;
+            updateGraphic();
+        }
+
+        function setMode(modeKey, element) {
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            element.classList.add('active');
+            currentMode = modeKey;
             updateGraphic();
         }
     </script>
