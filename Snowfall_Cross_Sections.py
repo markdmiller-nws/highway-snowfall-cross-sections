@@ -501,9 +501,9 @@ def render_and_save_route(route_key, hours=48, mode="ndfd", display_inline=False
     elif mode == "nbm_range":
         header_title = f"{hours}-HOUR SNOWFALL RANGE (NBM 10th-90th %ile)"
     elif mode == "prob4":
-        header_title = f"{hours}-HOUR PROBABILITY OF SNOWFALL > 4\""
+        header_title = f"{hours}-HOUR NBM PROBABILITY OF SNOWFALL > 4\""
     elif mode == "prob8":
-        header_title = f"{hours}-HOUR PROBABILITY OF SNOWFALL > 8\""
+        header_title = f"{hours}-HOUR NBM PROBABILITY OF SNOWFALL > 8\""
 
     fig.text(0.50, 0.94, header_title, color='#ffd166', 
              fontsize=34, fontweight='heavy', ha='center', va='center', path_effects=outline_white)
