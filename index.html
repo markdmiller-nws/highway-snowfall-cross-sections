@@ -104,28 +104,30 @@
             position: relative;
         }
 
-        /* Control Toggle Stack */
-        .controls-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 18px;
-        }
-
-        .mode-bar, .timeframe-bar {
+        /* Control Toggle Bars */
+        .mode-bar {
             display: flex;
             background-color: #1b2431;
             padding: 4px;
             border-radius: 8px;
             border: 1px solid #2a3649;
+            margin-bottom: 14px;
+        }
+
+        .timeframe-bar {
+            display: flex;
+            background-color: #1b2431;
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid #2a3649;
+            margin-top: 14px;
         }
 
         .mode-btn, .tf-btn {
             background: none;
             border: none;
             color: #9ba8b7;
-            padding: 7px 16px;
+            padding: 8px 18px;
             font-size: 0.8rem;
             font-weight: 700;
             border-radius: 6px;
@@ -153,7 +155,7 @@
 
         #graphic-display {
             max-width: 100%;
-            max-height: 76vh;
+            max-height: 72vh;
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             border: 1px solid #2a3649;
@@ -190,24 +192,24 @@
     <!-- Main Display Area -->
     <div id="viewer-container">
         
-        <div class="controls-stack">
-            <!-- Data Source & Forecast Type Toggle Bar -->
-            <div class="mode-bar">
-                <button class="mode-btn active" onclick="setMode('ndfd', this)">NWS OFFICIAL (NDFD)</button>
-                <button class="mode-btn" onclick="setMode('nbm_range', this)">NBM RANGE (10th-90th %ile)</button>
-                <button class="mode-btn" onclick="setMode('prob4', this)">PROBABILITY > 4"</button>
-                <button class="mode-btn" onclick="setMode('prob8', this)">PROBABILITY > 8"</button>
-            </div>
-
-            <!-- Time Horizon Toggle Switch -->
-            <div class="timeframe-bar">
-                <button class="tf-btn active" onclick="setTimeframe(24, this)">24-HOUR ACCUMULATION</button>
-                <button class="tf-btn" onclick="setTimeframe(48, this)">48-HOUR ACCUMULATION</button>
-                <button class="tf-btn" onclick="setTimeframe(72, this)">72-HOUR ACCUMULATION</button>
-            </div>
+        <!-- Data Source & Forecast Type Toggle Bar (Above Graphic) -->
+        <div class="mode-bar">
+            <button class="mode-btn active" onclick="setMode('ndfd', this)">OFFICIAL (NDFD)</button>
+            <button class="mode-btn" onclick="setMode('nbm_range', this)">NBM 10th-90th %ile</button>
+            <button class="mode-btn" onclick="setMode('prob4', this)">NBM PROBABILITY > 4"</button>
+            <button class="mode-btn" onclick="setMode('prob8', this)">NBM PROBABILITY > 8"</button>
         </div>
 
+        <!-- Central Graphic Display -->
         <img id="graphic-display" src="output_graphics/i70_co_24h_ndfd.png" alt="Snowfall Forecast Graphic">
+
+        <!-- Time Horizon Toggle Switch (Below Graphic) -->
+        <div class="timeframe-bar">
+            <button class="tf-btn active" onclick="setTimeframe(24, this)">24-HOUR ACCUMULATION</button>
+            <button class="tf-btn" onclick="setTimeframe(48, this)">48-HOUR ACCUMULATION</button>
+            <button class="tf-btn" onclick="setTimeframe(72, this)">72-HOUR ACCUMULATION</button>
+        </div>
+
     </div>
 
     <script>
